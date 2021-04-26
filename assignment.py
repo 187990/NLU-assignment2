@@ -596,8 +596,7 @@ def test_spacy_exercise3(path):
         hyps.append(new_list)
                 
 
-    for sent in hyps:
-       print(sent)
+    
     
    #token eval
     results = evaluate_tokes(refs, hyps)
@@ -610,5 +609,117 @@ def test_spacy_exercise3(path):
     pd_tbl_chunk.round(decimals=3)
    
     return((pd_tbl_tok, pd_tbl_chunk))    
+
+
+
+
+
+
+
+
+
+
+#OTHER FUNCTIONS USED
+#see report for details
+def restructure_tokenisation_alternative(token, doc, new_list, problem='-'):   
+
+    jump_index=token.i #index to jump
+    text=token.text #text of the token
+    tag=""
+    if problem=='-':  
+        for num, t in enumerate(doc):
+            if num<=token.i: #until you are not to the token index continue
+                continue
+            #concatenate text if you find a mismatch
+            elif (num>token.i  and ((t.whitespace_=='' and t.text=='-') or doc[t.i-1].text=='-' )):
+                text+=t.text
+                jump_index+=1
+            else:
+                break
+ 
+    if(token.ent_type_!=''): 
+        tag=token.ent_iob_+'-'+remap(token.ent_type_)
+                         
+    else:
+        tag=token.ent_iob_
+    
+    new_list.append((text, tag))
+        
+    
+        
+    return jump_index              
+
+def check_label_freq(path):
+
+    nlp = spacy.load('en_core_web_sm')
+    refs=[]#refs list
+    #extract the sentence as token list from corpus
+    temporary_corpus=conll.read_corpus_conll(path)
+    hyp_test_corpus=[]
+    #recreate the corpus phrases and create the ground truth
+    for sent in temporary_corpus:
+        new_sent=[]
+        new_list=[]
+        for element in sent:
+            word=element[0].split()[0]
+            tag=element[0].split()[3]
+            new_sent.append(word)
+            new_tuple=(word, tag)
+            new_list.append(new_tuple)
+        if new_sent!=['-DOCSTART-']:
+            hyp_test_corpus.append(" ".join(new_sent)) #add a phrase to recreated corpus
+            refs.append(new_list) #add a tuple to ground truth
+    
+    
+    
+    #creating hyps list
+    hyps=[]
+    for sent in hyp_test_corpus:
+        doc = nlp(sent)
+        new_list=[]
+        jump_index=-1#if you have to merge some tokens
+        for token in doc:
+            text=token.text
+            #jump if you have to jump some already considered tokens
+            if(token.i<=jump_index):
+                continue
+            #if find a token you have to merge with the followings
+            elif token.whitespace_=='' and (doc.__len__()>(token.i+1)):
+                if doc[token.i+1].text=='-':
+                    jump_index=restructure_tokenisation_alternative(token, doc, new_list) 
+            elif(token.ent_type_!=''): 
+                tag=token.ent_iob_+'-'+remap(token.ent_type_)
+                new_tuple=(text, tag)
+                new_list.append(new_tuple)
+            else:#for unnamed entity
+                new_tuple=(text, tag)
+                new_list.append(new_tuple)
+        hyps.append(new_list)
+    
+    result_dict={}    
+    data=conll.align_hyp(refs, hyps)        
+    for sent in data:
+        for token in sent:
+            #iob and tag for hyp and ref
+            hyp_iob, hyp = conll.parse_iob(token[-1])
+            ref_iob, ref = conll.parse_iob(token[-2])
+
+            if hyp != None:
+                if not result_dict.get(hyp) and hyp:
+                    result_dict[hyp] = {}
+                if not result_dict[hyp].get(ref) and ref:
+                    result_dict[hyp][ref]=1
+                elif not result_dict[hyp].get('O') and not ref:
+                    result_dict[hyp]['O']=1
+                else:
+                    if ref:
+                         result_dict[hyp][ref]+=1
+                    else:
+                        result_dict[hyp]['O']+=1
+
+  
+   
+   
+    return result_dict  
 
 
