@@ -10,7 +10,7 @@ the files contained are:
   it contains the code of conll as implemented by instructor plus some added comment that I used to understand its implementation
 - [result](./result)
   it contains the result of the function on test data
-- [extra.py](./extra.py) and [result_extra](./result_extra) are two extra files that explained in the [report.pdf](./report.pdf)
+- [extra.py](./extra.py) and [extra_result](./extra_result) are two extra files that explained in the [report.pdf](./report.pdf)
   
 ## Requirements:
 The requirements are:
