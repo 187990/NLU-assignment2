@@ -155,7 +155,7 @@ def remap(value):
         tag=value
     return tag
 
-def restructure_tokenisation(token, doc, new_list, problem='-', compound_list=False):   
+def restructure_tokenisation(token, doc, new_list, problem='-', compound=False):   
     """
     resolve some tokenisation difference from spacy to connll
     :param token: a token
@@ -177,35 +177,23 @@ def restructure_tokenisation(token, doc, new_list, problem='-', compound_list=Fa
             else:
                 break
             
-    if(compound_list==False):
+ 
     #construct the label and add the tuple
-        if(token.ent_type_!=''): 
+        if(token.ent_type_!='') and (compound==False): 
             if(token.ent_type_!='DATE') and (token.ent_type_!='MONEY')  and (token.ent_type_!='PERCENT') and (token.ent_type_!='PRODUCT') and (token.ent_type_!='QUANTITY') and (token.ent_type_!='ORDINAL') and (token.ent_type_!='CARDINAL') and (token.ent_type_!='TIME') :
                 tag=token.ent_iob_+'-'+remap(token.ent_type_)
             else:
                 tag='O'               
+        elif (token.ent_type_!='') and (compound[token.i] != None):
+             if(token.ent_type_!='DATE') and (token.ent_type_!='MONEY')  and (token.ent_type_!='PERCENT') and (token.ent_type_!='PRODUCT') and (token.ent_type_!='QUANTITY') and (token.ent_type_!='ORDINAL') and (token.ent_type_!='CARDINAL') and (token.ent_type_!='TIME') :
+                tag=compound[token.i]+'-'+remap(token.ent_type_)
+             else:
+                tag='O'  
         else:
             tag=token.ent_iob_
         new_list.append((text, tag))
         
-    else:
-        if ((compound_list[token.i]!=None) and (token.ent_type_=='')): #in this case you have eredited a tag from compound
-            if(compound_list[token.i][1]!='DATE') and (compound_list[token.i][1]!='PERCENT') and (compound_list[token.i][1]!='MONEY') and (compound_list[token.i][1]!='TIME') and (compound_list[token.i][1]!='QUANTITY') and (compound_list[token.i][1]!='ORDINAL') and (compound_list[token.i][1]!='CARDINAL') and (compound_list[token.i][1]!='PRODUCT'):
-                tag=compound_list[token.i][0]+'-'+remap(compound_list[token.i][1])#in this case remap the tag
-            else: #if the eredited tag was not used in conll you change nothing
-                tag='O'
-        elif(token.ent_type_!=''): #if the tag is setted
-           if(token.ent_type_!='DATE') and (token.ent_type_!='PERCENT') and (token.ent_type_!='MONEY') and (token.ent_type_!='TIME') and (token.ent_type_!='QUANTITY') and (token.ent_type_!='ORDINAL') and (token.ent_type_!='CARDINAL') and (token.ent_type_!='PRODUCT'):
-               if (compound_list[token.i]!=None): #if compund is setted iob must be changed
-                   tag=compound_list[token.i][0]+'-'+remap(token.ent_type_)
-               else: #no compund
-                   tag=token.ent_iob_+'-'+remap(token.ent_type_)
-           else: #some tags are not considered in conll
-               tag='O'
-        else: #default option
-            tag=token.ent_iob_
-        new_list.append((text, tag))
-        
+    
     return jump_index              
 
 
@@ -492,46 +480,42 @@ def group_name_entities(phrases): #SAREBBE DA METTER UN NA NEI TOKENZ
 # and test_spacy_exercise3 to test the improvement
 def exercise3_function(doc):
     """
-    extract the compunds and the element involved in them. check if you have to chang iob tag and NER tag
+    extra the compunds and the element involved in them. check if you have to chang iob tag and NER tag and modifies them
     :param doc: parsed phrase
-    :return: a list containing none if a token is not part of compound or a tuple with the iob and ner tag to change inside it
+    :return: the modified doc and a list of iob to change
     """ 
-    return_list=[None]*doc.__len__()
-    for chunks in doc.noun_chunks:
-        ent_root=chunks.root.ent_type_
-        sx=float('inf')
-        dx=float('-inf')
-        for token in chunks:
-            if token.ent_type_=='' and token!=chunks.root and ent_root!='':
-                for element in chunks:
-                    if(element.i<sx)and(element.ent_type_==chunks.root.ent_type_):
-                        sx=element.i
-                    if(element.i>dx)and(element.ent_type_==chunks.root.ent_type_):
-                        dx=element.i
-                if token.i==sx-1:
-                    return_list[token.i]=("B", str(ent_root))
-                    if doc[sx].ent_iob_=='B':
-                        return_list.insert(sx, ("I", None))
-                        return_list.pop(sx+1)
+    compound=[None]*doc.__len__()
 
-                elif(token.i==dx+1):
-                    return_list.insert(token.i, ("I", str(ent_root)))
-                    return_list.pop(token.i+1)
+    for token in doc:
+        if (token.ent_type_=='') and (token.dep_=='compound')  and (token.head.ent_type_!=''):
+            ent_root=token.head.ent_type_
+            #if the token is before a noun in compound modifiy the B tag of the following
+            if doc[token.i+1].ent_type_==ent_root and doc[token.i+1].ent_iob_=='B' and ((doc[token.i+1].dep_=='compound' and token.head==doc[token.i+1].head) or (token.head==doc[token.i+1])) : #the tokens is before another token with same NER tag
+                compound[token.i+1]='I'
+                compound[token.i]='B'
+                token.ent_type_=ent_root
+            #if the token is after a noun of its compound
+            elif doc[token.i-1].ent_type_==ent_root  and doc[token.i-1].dep_=='compound'  and ((doc[token.i-1].dep_=='compound' and token.head==doc[token.i-1].head) or (token.head==doc[token.i-1])):
+                compound[token.i]='I'
+                token.ent_type_=ent_root
+            else:#the token is alone
+                compound[token.i]='B'
+                token.ent_type_=ent_root
+                   
 
-                else:
-                    return_list.insert(token.i, ("B", str(ent_root)))
-                    return_list.pop(token.i+1)
-
-    return return_list
+    return (doc, compound)
     
 
     
 def test_spacy_exercise3(path):
     """
-    test spacy on conll with extension of label to compound 
-    :param phrases: path where there is the file to use in the performance evaluation 
-    :return: two tables with the evalutions
-    """     
+    test spacy on conll
+    :param path: the path in which ground truth is stored
+    :return: a tuple containing pandas table for accuracy for tokens and other metrics for chunks
+    """ 
+    
+    #PREPARING EVALUATION
+    
     nlp = spacy.load('en_core_web_sm')
     refs=[]#refs list
     #extract the sentence as token list from corpus
@@ -557,7 +541,7 @@ def test_spacy_exercise3(path):
     hyps=[]
     for sent in hyp_test_corpus:
         doc = nlp(sent)
-        compound_list=exercise3_function(doc)
+        doc, compound = exercise3_function(doc) #call to the new function
         new_list=[]
         jump_index=-1#if you have to merge some tokens
         for token in doc:
@@ -568,35 +552,37 @@ def test_spacy_exercise3(path):
             #if find a token you have to merge with the followings
             elif token.whitespace_=='' and (doc.__len__()>(token.i+1)):
                 if doc[token.i+1].text=='-':
-                    jump_index=restructure_tokenisation(token, doc, new_list, '-', compound_list) 
+                    jump_index=restructure_tokenisation(token, doc, new_list, compound) 
             #else consider the label and text and add a tuple 
-            elif(token.ent_type_!=''):#a named entity
+            elif(token.ent_type_!='') and (compound[token.i]==None):#a named entity
                 if(token.ent_type_!='DATE') and (token.ent_type_!='PERCENT') and (token.ent_type_!='MONEY') and (token.ent_type_!='TIME') and (token.ent_type_!='QUANTITY') and (token.ent_type_!='ORDINAL') and (token.ent_type_!='CARDINAL') and (token.ent_type_!='PRODUCT'):
-                    if (compound_list[token.i]!=None):
-                        tag=compound_list[token.i][0]+'-'+remap(token.ent_type_)
-                    else:
-                        tag=token.ent_iob_+'-'+remap(token.ent_type_)#note that you have to remap named tags
+                    tag=token.ent_iob_+'-'+remap(token.ent_type_)#note that you have to remap named tags
                     new_tuple=(text, tag)
                     new_list.append(new_tuple)
                 else: #some tags are not considered in conll
                     tag='O'
                     new_tuple=(text, tag)
                     new_list.append(new_tuple)
-            elif ((compound_list[token.i]!=None) and (token.ent_type_=='')):
-                if(compound_list[token.i][1]!='DATE') and (compound_list[token.i][1]!='PERCENT') and (compound_list[token.i][1]!='MONEY') and (compound_list[token.i][1]!='TIME') and (compound_list[token.i][1]!='QUANTITY') and (compound_list[token.i][1]!='ORDINAL') and (compound_list[token.i][1]!='CARDINAL') and (compound_list[token.i][1]!='PRODUCT'):
-                    tag=compound_list[token.i][0]+'-'+remap(compound_list[token.i][1])
-                else:
+            #else consider the label and text and add a tuple 
+            elif(token.ent_type_!='') and (compound[token.i]!=None):#a named entity
+                if(token.ent_type_!='DATE') and (token.ent_type_!='PERCENT') and (token.ent_type_!='MONEY') and (token.ent_type_!='TIME') and (token.ent_type_!='QUANTITY') and (token.ent_type_!='ORDINAL') and (token.ent_type_!='CARDINAL') and (token.ent_type_!='PRODUCT'):
+                    tag=compound[token.i]+'-'+remap(token.ent_type_)#note that you have to remap named tags
+                    new_tuple=(text, tag)
+                    new_list.append(new_tuple)
+                else: #some tags are not considered in conll
                     tag='O'
-                new_tuple=(text, tag)
-                new_list.append(new_tuple)
+                    new_tuple=(text, tag)
+                    new_list.append(new_tuple)
             else:#for unnamed entity
                 tag=token.ent_iob_
                 new_tuple=(text, tag)
                 new_list.append(new_tuple)
         hyps.append(new_list)
                 
+   
+ 
 
-    
+   
     
    #token eval
     results = evaluate_tokes(refs, hyps)
@@ -608,9 +594,7 @@ def test_spacy_exercise3(path):
     pd_tbl_chunk = pd.DataFrame().from_dict(results, orient='index')
     pd_tbl_chunk.round(decimals=3)
    
-    return((pd_tbl_tok, pd_tbl_chunk))    
-
-
+    return((pd_tbl_tok, pd_tbl_chunk))
 
 
 
@@ -638,7 +622,7 @@ def restructure_tokenisation_alternative(token, doc, new_list, problem='-'):
                 break
  
     if(token.ent_type_!=''): 
-        tag=token.ent_iob_+'-'+remap(token.ent_type_)
+        tag=token.ent_iob_+'-'+token.ent_type_
                          
     else:
         tag=token.ent_iob_
@@ -688,7 +672,7 @@ def check_label_freq(path):
                 if doc[token.i+1].text=='-':
                     jump_index=restructure_tokenisation_alternative(token, doc, new_list) 
             elif(token.ent_type_!=''): 
-                tag=token.ent_iob_+'-'+remap(token.ent_type_)
+                tag=token.ent_iob_+'-'+token.ent_type_
                 new_tuple=(text, tag)
                 new_list.append(new_tuple)
             else:#for unnamed entity
@@ -705,6 +689,7 @@ def check_label_freq(path):
             ref_iob, ref = conll.parse_iob(token[-2])
 
             if hyp != None:
+               
                 if not result_dict.get(hyp) and hyp:
                     result_dict[hyp] = {}
                 if not result_dict[hyp].get(ref) and ref:
