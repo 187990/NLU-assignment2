@@ -9,6 +9,7 @@ import pandas as pd
 import conll
 import spacy
 import numpy
+from sklearn.metrics import classification_report
 
 #EXERCISE 1 AND 3 UTILITY FUNCTION
 def evaluate_tokes(ref, hyp, otag='O'):
@@ -196,11 +197,31 @@ def restructure_tokenisation(token, doc, new_list, problem='-', compound=False):
     
     return jump_index              
 
-
+def change_label(label_list):
+    for element in label_list:
+        if element=='B-PER':
+            element=0
+        elif element=='I-PER':
+            element=1
+        elif element=='B-ORG':
+            element=2
+        elif element=='I-ORG':
+            element=3
+        elif element=='B-LOC':
+            element=4
+        elif element=='I-LOC':
+            element=5
+        elif element=='B-MISC':
+            element=6
+        elif element=='I-MISC':
+            element=7
+        elif element=='O':
+            element=8
+    return label_list
                 
              
 #EXERCISE 1                
-def test_spacy(path):
+def test_spacy(path, scikit=False):
     """
     test spacy on conll
     :param path: the path in which ground truth is stored
@@ -265,12 +286,27 @@ def test_spacy(path):
    
  
 
-   
-    
-   #token eval
-    results = evaluate_tokes(refs, hyps)
-    pd_tbl_tok = pd.DataFrame().from_dict(results, orient='index')
-    pd_tbl_tok.round(decimals=3)
+      #token eval
+
+    if scikit==False:
+        
+        results = evaluate_tokes(refs, hyps)
+        pd_tbl_tok = pd.DataFrame().from_dict(results, orient='index')
+        pd_tbl_tok.round(decimals=3)
+    else:
+        y_true=[]
+        y_pred=[]
+        for phrase in hyps:
+            for element in phrase:
+                y_pred.append(element[1])
+        for phrase in refs:
+            for element in phrase:
+                y_true.append(element[1])
+        y_true=change_label(y_true)
+        y_pred=change_label(y_pred)
+        target_names = ['B-PER', 'I-PER', 'B-ORG', 'I-ORG', 'B-LOC', 'I-LOC', 'B-MISC', 'I-MISC', 'O'] 
+        pd_tbl_tok = classification_report(y_true, y_pred, target_names=target_names)
+        print(pd_tbl_tok)
 
    #chunk eval
     results = conll.evaluate(refs, hyps)
@@ -507,7 +543,7 @@ def exercise3_function(doc):
     
 
     
-def test_spacy_exercise3(path):
+def test_spacy_exercise3(path, scikit=False):
     """
     test spacy on conll
     :param path: the path in which ground truth is stored
@@ -584,10 +620,25 @@ def test_spacy_exercise3(path):
 
    
     
-   #token eval
-    results = evaluate_tokes(refs, hyps)
-    pd_tbl_tok = pd.DataFrame().from_dict(results, orient='index')
-    pd_tbl_tok.round(decimals=3)
+    if scikit==False:
+        
+        results = evaluate_tokes(refs, hyps)
+        pd_tbl_tok = pd.DataFrame().from_dict(results, orient='index')
+        pd_tbl_tok.round(decimals=3)
+    else:
+        y_true=[]
+        y_pred=[]
+        for phrase in hyps:
+            for element in phrase:
+                y_pred.append(element[1])
+        for phrase in refs:
+            for element in phrase:
+                y_true.append(element[1])
+        y_true=change_label(y_true)
+        y_pred=change_label(y_pred)
+        target_names = ['B-PER', 'I-PER', 'B-ORG', 'I-ORG', 'B-LOC', 'I-LOC', 'B-MISC', 'I-MISC', 'O'] 
+        pd_tbl_tok = classification_report(y_true, y_pred, target_names=target_names)
+        print(pd_tbl_tok)
 
    #chunk eval
     results = conll.evaluate(refs, hyps)
